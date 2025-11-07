@@ -2,32 +2,38 @@
 #include <LiquidCrystal_I2C.h>
 
 // Pins
-const int trigPin = 5;
-const int echoPin = 18;
+const int trigPinWaste = 5;
+const int echoPinWaste = 18;
+
+const int trigPinRecycle = 23;
+const int echoPinRecycle = 32;
 
 // Trash can height in cm
 const long trashCanHeight = 50;
 
 // Timing
 unsigned long previousSensorMillis = 0;
-const long sensorInterval = 5000; // read sensor every 5 sec
+const long sensorInterval = 5000; // read sensors every 5 sec
 unsigned long previousLCDMillis = 0;
-const long lcdInterval = 1000;    // update LCD every 1 sec
+const long lcdInterval = 5000;    // update LCD every 5 sec
 
 // LCD
-LiquidCrystal_I2C lcd(0x27, 16, 2); // 0x27 matches your working example
+LiquidCrystal_I2C lcd(0x27, 16, 2); // I2C address
 
-long distance = 0;
-int fillLevel = 0;
+// Fill levels
+int fillWaste = 0;
+int fillRecycle = 0;
 
 void setup() {
   Serial.begin(115200);
 
   // Ultrasonic sensor pins
-  pinMode(trigPin, OUTPUT);
-  pinMode(echoPin, INPUT);
+  pinMode(trigPinWaste, OUTPUT);
+  pinMode(echoPinWaste, INPUT);
+  pinMode(trigPinRecycle, OUTPUT);
+  pinMode(echoPinRecycle, INPUT);
 
-  // Initialize I2C on ESP32
+  // Initialize I2C and LCD
   Wire.begin(21, 22); // SDA, SCL
   lcd.init();
   lcd.backlight();
@@ -39,50 +45,65 @@ void setup() {
 void loop() {
   unsigned long currentMillis = millis();
 
-  // --- Read sensor every 5 sec ---
+  // --- Read sensors every 5 sec ---
   if(currentMillis - previousSensorMillis >= sensorInterval){
     previousSensorMillis = currentMillis;
 
-    // Trigger ultrasonic pulse
-    digitalWrite(trigPin, LOW);
-    delayMicroseconds(2);
-    digitalWrite(trigPin, HIGH);
-    delayMicroseconds(10);
-    digitalWrite(trigPin, LOW);
+    // --- Waste sensor ---
+    fillWaste = readUltrasonic(trigPinWaste, echoPinWaste);
+    Serial.print("Waste Fill: "); Serial.print(fillWaste); Serial.println("%");
 
-    // Read echo with timeout
-    long duration = pulseIn(echoPin,HIGH,38000);
-
-    // Calculate distance in cm
-    distance = duration * 0.034 / 2;
-
-    // Clamp distance
-    if(distance > trashCanHeight || distance == 0) distance = trashCanHeight;
-
-    // Calculate fill %
-    fillLevel = map(distance,0,trashCanHeight,100,0);
-    fillLevel = constrain(fillLevel,0,100);
-
-    Serial.print("Distance: "); Serial.print(distance);
-    Serial.print(" cm\t Fill: "); Serial.println(fillLevel);
+    // --- Recycle sensor ---
+    fillRecycle = readUltrasonic(trigPinRecycle, echoPinRecycle);
+    Serial.print("Recycle Fill: "); Serial.print(fillRecycle); Serial.println("%");
   }
 
   // --- Update LCD every 1 sec ---
   if(currentMillis - previousLCDMillis >= lcdInterval){
     previousLCDMillis = currentMillis;
 
-    // Use same LCD logic as your working code
-    lcd.setCursor(0,0);
-    lcd.print("Fill:        "); // pad to clear old numbers
-    lcd.setCursor(6,0);
-    lcd.print(fillLevel);
-    lcd.print("%");
+    lcd.clear();
 
-    lcd.setCursor(0,1);
-    if(fillLevel >= 80){
-      lcd.print("Empty Trash!");
+    // Top row: Waste
+    lcd.setCursor(0,0);
+    if(fillWaste >= 80){
+      lcd.print("EMPTY WASTE!");
     } else {
-      lcd.print("Status: OK  "); // pad with spaces
+      lcd.print("Waste: ");
+      lcd.print(fillWaste);
+      lcd.print("%");
+    }
+
+    // Bottom row: Recycle
+    lcd.setCursor(0,1);
+    if(fillRecycle >= 80){
+      lcd.print("EMPTY RECYCLE!");
+    } else {
+      lcd.print("Recycle: ");
+      lcd.print(fillRecycle);
+      lcd.print("%");
     }
   }
+}
+
+// Function to read a sensor and convert to fill percentage
+int readUltrasonic(int trigPin, int echoPin){
+  // Trigger pulse
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+
+  // Read echo
+  long duration = pulseIn(echoPin, HIGH, 38000);
+
+  // Calculate distance
+  long distance = duration * 0.034 / 2;
+
+  if(distance > trashCanHeight || distance == 0) distance = trashCanHeight;
+
+  // Convert to fill %
+  int fillLevel = map(distance, 0, trashCanHeight, 100, 0);
+  return constrain(fillLevel, 0, 100);
 }
