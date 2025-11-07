@@ -79,11 +79,12 @@ wss.on('message', async function(message){
 
         // Score from 1-100, 1 being most negative, 100 being the most positive impact on a company
         if(companyImpact >= 70) { // if score >= 70: BUY STOCK
+            var amt = 100 - companyImpact;
             // Buy stock
             try {
                 let order = await alpaca.createOrder({
                     symbol: tickerSymbol,
-                    qty: 1,
+                    qty: amt,
                     side: 'buy',
                     type: 'market',
                     time_in_force: 'day'
@@ -92,7 +93,7 @@ wss.on('message', async function(message){
             } catch (error) {
                 console.error("Error placing buy order:", error);
             }
-        } else if (companyImpact <= 30) { // else if impact <= 30: SELL ALL OF STOCK
+        } else if (companyImpact <= 30 && alpaca.getPosition(tickerSymbol)) { // else if impact <= 30: SELL ALL OF STOCK
             // Sell stock
             try {
                 let closedPosition = await alpaca.closePosition(tickerSymbol);
