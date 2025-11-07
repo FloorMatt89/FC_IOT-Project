@@ -1,3 +1,2 @@
 # FC_IOT-Project
-Make code for esp32
-
+Create Website and connect AWS to website 
