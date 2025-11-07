@@ -23,19 +23,23 @@ if not(os.path.exists('/tmp/waste_classifier_model.h5')):
 model = tf.keras.models.load_model('waste_classifier_model.h5')
 
 def lambda_handler(event, context):
+    ## debug -- remove later
     print(event)
     print("\n\n")
     print(context)
     print("\n\n")
-    print(s3.list_objects_v2(Bucket=''))
+    print(s3.list_objects_v2(Bucket='waste-classifier-model-cis4950'))
+    print("\n\n")
 
 
-    # make prediction with model loaded from s3 
+    # image preprocessing
+    ## add support for receiving event['body'], where body['image'], body['wasteFillPct'], body['recycFillPct']
     img_data = base64.b64decode(event['image'])
     img = Image.open(io.BytesIO(img_data))
     img_array = tf.keras.preprocessing.image.img_to_array(img) / 255.0
     img_array = img_array.reshape(1,224,224,3)
     
+    # make prediction with loaded model
     pred = model.predict(img_array)
     pred_class = pred.argmax()
     # map class to binary label: 0 = recyclable, 1 = landfill waste
@@ -48,20 +52,22 @@ def lambda_handler(event, context):
     buffer = io.BytesIO()
     img.save(buffer, format='JPEG')
     buffer.seek(0)
-    s3.upload_fileobj(buffer, BUCKET_NAME, f'image_storage/{img_id}.jpg')
+    s3_url = f's3://{BUCKET_NAME}/image_storage/{img_id}.jpg'
+    s3.upload_fileobj(buffer, BUCKET_NAME, '/'.join(s3_url.split('/')[3:]))  # upload to 'image_storage/{img_id}.jpg'
 
     # save image metadata to dynamodb
     table.put_item(
         Item = {
-            'image_id':img_id,
+            'img_id':img_id,
             'predictions':pred,
             'waste_binary':waste_binary,
             'timestamp':str(datetime.now())
+            's3_url':s3_url
             # add name of model used
         }
     )
 
-    
+    # send to ESP32 with MQTT
     iot.publish(
         topic="esp32/image/waste_classification", ##
         qos=1,
@@ -71,9 +77,11 @@ def lambda_handler(event, context):
             'img_id':img_id
         })
     )
+    ## debug -- remove later
+    print(pred_class, waste_binary, '/'.join(s3_url.split('/')[3:]))
     return {
         'statusCode':200
-        'body':f'Published to receiver ESP32: class {pred_class}, <{boolean(waste_binary)}> waste result for {img_id}.jpeg'
+        'body':f'Published to receiver ESP32: class {pred_class}, <{boolean(waste_binary)}> waste result for {img_id}.jpg'
     }
 
     '''return {
@@ -127,3 +135,6 @@ with open("cats.jpg", "rb") as f:
 	data = f.read()
 predictor.predict(data)
 '''
+
+# test event - event = {'image':'/...'}
+# crumpled_paper - https://www.publicdomainpictures.net/pictures/190000/velka/crumpled-paper-146988600714V.jpg - encoded with https://base64.guru/converter/encode/image
