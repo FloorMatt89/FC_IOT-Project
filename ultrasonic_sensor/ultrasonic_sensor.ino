@@ -1,13 +1,24 @@
-// Pin definitions
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+// Pins
 const int trigPin = 5;
 const int echoPin = 18;
 
 // Trash can height in cm
-const long trashCanHeight = 50; // adjust to your trash can
+const long trashCanHeight = 50;
 
-// Time tracking
-unsigned long previousMillis = 0;
-const long interval = 10000; // 10 seconds
+// Timing
+unsigned long previousSensorMillis = 0;
+const long sensorInterval = 5000; // read sensor every 5 sec
+unsigned long previousLCDMillis = 0;
+const long lcdInterval = 1000;    // update LCD every 1 sec
+
+// LCD
+LiquidCrystal_I2C lcd(0x27, 16, 2); // 0x27 matches your working example
+
+long distance = 0;
+int fillLevel = 0;
 
 void setup() {
   Serial.begin(115200);
@@ -15,47 +26,63 @@ void setup() {
   // Ultrasonic sensor pins
   pinMode(trigPin, OUTPUT);
   pinMode(echoPin, INPUT);
+
+  // Initialize I2C on ESP32
+  Wire.begin(21, 22); // SDA, SCL
+  lcd.init();
+  lcd.backlight();
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("Trash Monitor");
 }
 
 void loop() {
   unsigned long currentMillis = millis();
 
-  // Only run every 10 seconds
-  if(currentMillis - previousMillis >= interval){
-    previousMillis = currentMillis;
+  // --- Read sensor every 5 sec ---
+  if(currentMillis - previousSensorMillis >= sensorInterval){
+    previousSensorMillis = currentMillis;
 
-    long duration, distance;
-
-    // Trigger the ultrasonic pulse
+    // Trigger ultrasonic pulse
     digitalWrite(trigPin, LOW);
     delayMicroseconds(2);
     digitalWrite(trigPin, HIGH);
     delayMicroseconds(10);
     digitalWrite(trigPin, LOW);
 
-    // Read the echo
-    duration = pulseIn(echoPin, HIGH);
+    // Read echo with timeout
+    long duration = pulseIn(echoPin,HIGH,38000);
 
     // Calculate distance in cm
     distance = duration * 0.034 / 2;
 
-    // Clamp distance to trash can height
-    if(distance > trashCanHeight) distance = trashCanHeight;
+    // Clamp distance
+    if(distance > trashCanHeight || distance == 0) distance = trashCanHeight;
 
-    // Calculate trash fill percentage
-    int fillLevel = map(distance, 0, trashCanHeight, 100, 0); // 0cm = full, max height = empty
-    fillLevel = constrain(fillLevel, 0, 100);
+    // Calculate fill %
+    fillLevel = map(distance,0,trashCanHeight,100,0);
+    fillLevel = constrain(fillLevel,0,100);
 
-    // Print readings
-    Serial.print("Distance: ");
-    Serial.print(distance);
-    Serial.print(" cm\t Fill Level: ");
-    Serial.print(fillLevel);
-    Serial.println("%");
+    Serial.print("Distance: "); Serial.print(distance);
+    Serial.print(" cm\t Fill: "); Serial.println(fillLevel);
+  }
 
-    // Check if trash is ≥ 80% full
+  // --- Update LCD every 1 sec ---
+  if(currentMillis - previousLCDMillis >= lcdInterval){
+    previousLCDMillis = currentMillis;
+
+    // Use same LCD logic as your working code
+    lcd.setCursor(0,0);
+    lcd.print("Fill:        "); // pad to clear old numbers
+    lcd.setCursor(6,0);
+    lcd.print(fillLevel);
+    lcd.print("%");
+
+    lcd.setCursor(0,1);
     if(fillLevel >= 80){
-      Serial.println("⚠️ Trash is over 80%! Time to empty!");
+      lcd.print("Empty Trash!");
+    } else {
+      lcd.print("Status: OK  "); // pad with spaces
     }
   }
 }
