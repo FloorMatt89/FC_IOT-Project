@@ -56,7 +56,7 @@ wss.on('message', async function(message){
                 messages: [
                     {
                         role: "system",
-                        content: "Only respond with a number from 1-100 detailing the impact of the headline."
+                        content: "Only respond with a number from 1-100 detailing the impact of the headline. The lower the value, the more negatively impactful the headline is. The higher the value, the more positively impactful the headline is."
                     },
                     {
                         role: "user",
