@@ -2,8 +2,11 @@
 
 import styles from './page.module.css';
 import { FaWifi, FaRecycle } from "react-icons/fa";
+import PortfolioDisplay from './components/PortfolioDisplay';
+import { useState } from 'react';
 
 export default function Dashboard() {
+  const [activeTab, setActiveTab] = useState<'recycling' | 'trading'>('recycling');
   // Placeholder values 
   // Replace with real data later
   const binId = "123456";
@@ -20,19 +23,38 @@ export default function Dashboard() {
         {/* Header */}
         <header className={styles.header}>
           <h1 className={styles.title}> EcoTradeBin Dashboard</h1>
-          <p className={styles.subtitle}>Track your recycling progress</p>
+          <p className={styles.subtitle}>Track your recycling progress and trading portfolio</p>
         </header>
 
-        {/* Bin Connected Status */}
-        <div className={styles.statusCard}>
-          <div className={styles.statusIcon}>
-            <FaWifi />
-          </div>
-          <div className={styles.statusText}>
-            <div className={styles.statusTitle}>Bin Connected</div>
-            <div className={styles.statusSubtitle}>Bin #{binId} • {binStatus}</div>
-          </div>
+        {/* Tab Navigation */}
+        <div className={styles.tabContainer}>
+          <button
+            className={`${styles.tab} ${activeTab === 'recycling' ? styles.activeTab : ''}`}
+            onClick={() => setActiveTab('recycling')}
+          >
+            Recycling
+          </button>
+          <button
+            className={`${styles.tab} ${activeTab === 'trading' ? styles.activeTab : ''}`}
+            onClick={() => setActiveTab('trading')}
+          >
+            Trading Portfolio
+          </button>
         </div>
+
+        {/* Conditional Content Based on Active Tab */}
+        {activeTab === 'recycling' ? (
+          <>
+            {/* Bin Connected Status */}
+            <div className={styles.statusCard}>
+              <div className={styles.statusIcon}>
+                <FaWifi />
+              </div>
+              <div className={styles.statusText}>
+                <div className={styles.statusTitle}>Bin Connected</div>
+                <div className={styles.statusSubtitle}>Bin #{binId} • {binStatus}</div>
+              </div>
+            </div>
 
         {/* Current Streak Card */}
         <div className={styles.streakCard}>
@@ -69,45 +91,49 @@ export default function Dashboard() {
           <div className={styles.fillReminder}>{reminderText}</div>
         </div>
 
-        {/* Recent Activity */}
-        <div className={styles.activitySection}>
-          <h2 className={styles.activityTitle}>Recent Activity</h2>
-          
-          <div className={styles.activityList}>
-            <div className={styles.activityItem}>
-              <div className={styles.activityIcon}>
-                <FaRecycle size={20} />
-              </div>
-              <div className={styles.activityContent}>
-                <div className={styles.activityName}>No input</div>
-                <div className={styles.activityTime}>No input</div>
-              </div>
-              <div className={styles.activityBadge}>No input</div>
-            </div>
+            {/* Recent Activity */}
+            <div className={styles.activitySection}>
+              <h2 className={styles.activityTitle}>Recent Activity</h2>
 
-            <div className={styles.activityItem}>
-              <div className={styles.activityIcon}>
-                <FaRecycle size={20} />
-              </div>
-              <div className={styles.activityContent}>
-                <div className={styles.activityName}>No input</div>
-                <div className={styles.activityTime}>No input</div>
-              </div>
-              <div className={styles.activityBadge}>No input</div>
-            </div>
+              <div className={styles.activityList}>
+                <div className={styles.activityItem}>
+                  <div className={styles.activityIcon}>
+                    <FaRecycle size={20} />
+                  </div>
+                  <div className={styles.activityContent}>
+                    <div className={styles.activityName}>No input</div>
+                    <div className={styles.activityTime}>No input</div>
+                  </div>
+                  <div className={styles.activityBadge}>No input</div>
+                </div>
 
-            <div className={styles.activityItem}>
-              <div className={styles.activityIcon}>
-                <FaRecycle size={20} />
+                <div className={styles.activityItem}>
+                  <div className={styles.activityIcon}>
+                    <FaRecycle size={20} />
+                  </div>
+                  <div className={styles.activityContent}>
+                    <div className={styles.activityName}>No input</div>
+                    <div className={styles.activityTime}>No input</div>
+                  </div>
+                  <div className={styles.activityBadge}>No input</div>
+                </div>
+
+                <div className={styles.activityItem}>
+                  <div className={styles.activityIcon}>
+                    <FaRecycle size={20} />
+                  </div>
+                  <div className={styles.activityContent}>
+                    <div className={styles.activityName}>No input</div>
+                    <div className={styles.activityTime}>No input</div>
+                  </div>
+                  <div className={styles.activityBadge}>No input</div>
+                </div>
               </div>
-              <div className={styles.activityContent}>
-                <div className={styles.activityName}>No input</div>
-                <div className={styles.activityTime}>No input</div>
-              </div>
-              <div className={styles.activityBadge}>No input</div>
             </div>
-          </div>
-        </div>
+          </>
+        ) : (
+          <PortfolioDisplay />
+        )}
       </div>
     </main>
   );
