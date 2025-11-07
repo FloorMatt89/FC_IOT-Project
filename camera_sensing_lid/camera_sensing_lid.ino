@@ -2,6 +2,8 @@
 #include <WiFi.h>
 #include <ESP32Servo.h>
 #include <WebServer.h>
+#include <esp_now.h>
+
 
 // ====== Wi-Fi credentials ======
 const char* ssid = "ATTfEqa6if";
@@ -50,6 +52,45 @@ void handle_jpg_stream();
 void updateSystem();
 void handleSerialInput(String cmd);
 
+typedef struct msg {
+  int wasteFillPct;
+  int recycFillPct;
+} msg;
+
+msg incomingData;
+
+void onDataRecv(const esp_now_recv_info_t *recv_info, const uint8_t *incomingDataBytes, int len) {
+  memcpy(&incomingData, incomingDataBytes, sizeof(incomingData));
+  
+  Serial.println("=== ESP-NOW Data Received ===");
+  Serial.printf("Waste Fill: %d%%\n", incomingData.wasteFillPct);
+  Serial.printf("Recycle Fill: %d%%\n", incomingData.recycFillPct);
+
+  // Optional: print sender MAC
+  Serial.print("From MAC: ");
+  for (int i = 0; i < 6; i++) {
+    Serial.printf("%02X", recv_info->src_addr[i]);
+    if (i < 5) Serial.print(":");
+  }
+  Serial.println();
+
+  // Example: control LEDs and servos
+  if (incomingData.wasteFillPct >= 80) {
+    digitalWrite(redLedPin, HIGH);
+    digitalWrite(greenLedPin, LOW);
+    myServo.write(100);
+    myServo2.write(180);
+    Serial.println("Trash full — closing trash chute.");
+  } 
+  else if (incomingData.recycFillPct >= 80) {
+    digitalWrite(redLedPin, LOW);
+    digitalWrite(greenLedPin, HIGH);
+    myServo.write(180);
+    myServo2.write(100);
+    Serial.println("Recycle full — opening recycle chute.");
+  }
+}
+
 // ===== Setup =====
 void setup() {
   Serial.begin(115200);
@@ -66,6 +107,14 @@ void setup() {
   Serial.println("\nWiFi connected!");
   Serial.print("Camera Stream URL: http://");
   Serial.println(WiFi.localIP());
+
+  // ===== Initialize ESP-NOW =====
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("Error initializing ESP-NOW");
+  } else {
+    Serial.println("ESP-NOW initialized!");
+    esp_now_register_recv_cb(onDataRecv);
+  }
 
   // ===== Camera Configuration =====
   camera_config_t config;
