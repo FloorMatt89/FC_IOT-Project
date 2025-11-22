@@ -137,3 +137,54 @@
   background: #f9fafb;
   border-radius: 8px;
 }
+
+.chartHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.periodSelector {
+  display: flex;
+  gap: 8px;
+  background: #f9fafb;
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.periodButton {
+  padding: 8px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #6b7280;
+  transition: all 0.2s;
+}
+
+.periodButton:hover {
+  background: #e5e7eb;
+  color: #1f2937;
+}
+
+.activePeriod {
+  background: #10b981 !important;
+  color: white !important;
+}
+
+.chartContainer {
+  margin-top: 20px;
+  padding: 20px 0;
+}
+
+.chartLoading {
+  text-align: center;
+  padding: 60px;
+  color: #6b7280;
+  font-size: 16px;
+}
