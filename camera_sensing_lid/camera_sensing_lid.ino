@@ -6,8 +6,8 @@
 
 
 // ====== Wi-Fi credentials ======
-const char* ssid = "ATTfEqa6if";
-const char* password = "hb6axzafb8bn";
+const char* ssid = "<hidden>";
+const char* password = "<hidden>";
 
 // ====== Camera Pin Mapping (Freenove ESP32-WROVER) ======
 #define PWDN_GPIO_NUM    -1
