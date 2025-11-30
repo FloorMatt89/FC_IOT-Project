@@ -23,12 +23,12 @@
 
 // --------------------  DEVICE / WIFI CREDENTIALS  --------------------
 // Device provisioning values (as provided)
-const char DEVICE_ID[]    = "9205b4fe-48c7-425a-9fc5-cc4242e77a7c";     // Device ID (UUID)
-const char DEVICE_SECRET[] = "1KRs9BDnANnmuIfuq??SX3dsQ";             // Device Secret Key
+const char DEVICE_ID[]    = "<hidden>";     // Device ID (UUID)
+const char DEVICE_SECRET[] = "<hidden>";             // Device Secret Key
 
 // Wi-Fi credentials (from your Secrets page)
-const char WIFI_SSID[]     = "NETGEAR20";
-const char WIFI_PASSWORD[] = "dizzywater213";
+const char WIFI_SSID[]     = "<hidden>";
+const char WIFI_PASSWORD[] = "<hidden>";
 
 // --------------------  IoT Cloud "Thing" variables --------------------
 // These must match the variable names & types you created in Arduino IoT Cloud
@@ -225,7 +225,7 @@ void setup() {
   //
   Serial.println("Connecting to Arduino IoT Cloud (using provided Wi-Fi creds)...");
   // ===== Arduino IoT Cloud initialization =====
-  ArduinoCloud.setThingId("715f31bb-9043-420f-a302-6703925e5dae");
+  ArduinoCloud.setThingId("<hidden>");
   ArduinoCloud.setDeviceId(DEVICE_ID);
   ArduinoCloud.setSecretDeviceKey(DEVICE_SECRET);
   ArduinoCloud.begin(ArduinoIoTPreferredConnection);
