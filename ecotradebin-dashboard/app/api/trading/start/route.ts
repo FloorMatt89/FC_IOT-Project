@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
     const ec2Url = process.env.EC2_CONTROL_API_URL;
     const apiKey = process.env.EC2_CONTROL_API_KEY;
@@ -12,12 +12,17 @@ export async function POST() {
       );
     }
 
+    // Parse request body to get strategy
+    const body = await request.json().catch(() => ({}));
+    const strategy = body.strategy || 'news-sentiment';
+
     const response = await fetch(`${ec2Url}/start`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': apiKey,
       },
+      body: JSON.stringify({ strategy }),
     });
 
     const data = await response.json();
