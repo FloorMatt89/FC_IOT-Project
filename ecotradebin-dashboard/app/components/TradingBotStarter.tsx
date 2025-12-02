@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 
+type TradingStrategy = 'news-sentiment' | 'historical-data';
+
 export default function TradingBotStarter() {
   const [status, setStatus] = useState<'idle' | 'starting' | 'online' | 'stopped' | 'error' | 'checking'>('checking');
   const [strategy, setStrategy] = useState<'news-sentiment' | 'historical-data'>('news-sentiment');
@@ -138,6 +140,17 @@ export default function TradingBotStarter() {
         return 'Checking...';
       default:
         return 'Idle';
+    }
+  };
+
+  const getStrategyLabel = (strat: TradingStrategy) => {
+    switch (strat) {
+      case 'news-sentiment':
+        return '📰 News Sentiment AI';
+      case 'historical-data':
+        return '📊 Historical Data';
+      default:
+        return strat;
     }
   };
 
