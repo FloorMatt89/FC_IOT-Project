@@ -19,22 +19,22 @@ const char WIFI_SSID[]     = "<hidden>";
 const char WIFI_PASSWORD[] = "<hidden>";
 
 // AWS IoT credentials (replace with your own certs/endpoint)
-const char* aws_endpoint = "YOUR_AWS_IOT_ENDPOINT_HERE";  // e.g., xxxxxxxx-ats.iot.us-east-1.amazonaws.com
+const char* aws_endpoint = "<hidden>";  // e.g., xxxxxxxx-ats.iot.us-east-1.amazonaws.com
 const int   aws_port     = 8883;
 
 const char* ca_cert = \
 "-----BEGIN CERTIFICATE-----\n" \
-"...YOUR_ROOT_CA...\n" \
+"<hidden>" \
 "-----END CERTIFICATE-----\n";
 
 const char* client_cert = \
 "-----BEGIN CERTIFICATE-----\n" \
-"...YOUR_DEVICE_CERT...\n" \
+"<hidden>" \
 "-----END CERTIFICATE-----\n";
 
 const char* private_key = \
 "-----BEGIN PRIVATE KEY-----\n" \
-"...YOUR_PRIVATE_KEY...\n" \
+"<hidden>" \
 "-----END PRIVATE KEY-----\n";
 
 // MQTT topics
