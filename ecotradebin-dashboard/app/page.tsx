@@ -3,19 +3,65 @@
 import styles from './page.module.css';
 import { FaWifi, FaRecycle } from "react-icons/fa";
 import PortfolioDisplay from './components/PortfolioDisplay';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+
+interface IoTData {
+  devices: Array<{
+    id: string;
+    name: string;
+    status: string;
+    fillLevel: number;
+    itemsThisWeek: number;
+    lastUpdate: string | null;
+  }>;
+  summary: {
+    totalItemsThisWeek: number;
+    averageFillLevel: number;
+    currentStreak: number;
+    recyclingRate: number;
+    connectedDevices: number;
+  };
+}
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<'recycling' | 'trading'>('recycling');
-  // Placeholder values 
-  // Replace with real data later
-  const binId = "123456";
-  const binStatus = "Not Connected";
-  const currentStreak = 0;
-  const itemsThisWeek = 0;
-  const recyclingRate = 0;
-  const binFillLevel = 20;
-  const reminderText = "No input";
+  const [iotData, setIotData] = useState<IoTData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch IoT device data
+  useEffect(() => {
+    const fetchIoTData = async () => {
+      try {
+        const response = await fetch('/api/iot/devices');
+        const data = await response.json();
+        setIotData(data);
+      } catch (error) {
+        console.error('Error fetching IoT data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchIoTData();
+    // Refresh every 10 seconds
+    const interval = setInterval(fetchIoTData, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Use IoT data or fallback to defaults
+  const binId = iotData?.devices[0]?.id || "Unknown";
+  const binStatus = iotData?.summary.connectedDevices
+    ? `${iotData.summary.connectedDevices} Connected`
+    : "Not Connected";
+  const currentStreak = iotData?.summary.currentStreak || 0;
+  const itemsThisWeek = iotData?.summary.totalItemsThisWeek || 0;
+  const recyclingRate = Math.round(iotData?.summary.recyclingRate || 0);
+  const binFillLevel = Math.round(iotData?.summary.averageFillLevel || 0);
+  const reminderText = loading
+    ? "Loading..."
+    : binFillLevel > 80
+      ? "Bins are getting full!"
+      : "Keep recycling!";
 
   return (
     <main className={styles.container}>
