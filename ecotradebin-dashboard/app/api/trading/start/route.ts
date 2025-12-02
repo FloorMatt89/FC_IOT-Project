@@ -16,9 +16,6 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const strategy = body.strategy || 'news-sentiment';
 
-    // Get strategy from request body
-    const body = await request.json();
-    const { strategy = 'news-sentiment' } = body;
 
     // Add timeout to fetch request
     const controller = new AbortController();
