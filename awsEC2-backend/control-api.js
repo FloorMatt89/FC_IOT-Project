@@ -120,7 +120,8 @@ app.post('/start', authenticate, async (req, res) => {
     }
 
     // Start the service with specified strategy
-    const command = `cd ~/FC_IOT-Project/trading-service && pm2 start server.js --name trading-service -- --mode ${strategy}`;
+    const servicePath = process.env.SERVICE_PATH || '~/FC_IOT-Project/awsEC2-backend';
+    const command = `cd ${servicePath} && pm2 start server.js --name trading-service -- --mode ${strategy}`;
     const { stdout } = await execPromise(command);
     console.log('Start output:', stdout);
 
