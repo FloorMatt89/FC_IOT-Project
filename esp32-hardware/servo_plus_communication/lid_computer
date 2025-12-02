@@ -1,0 +1,451 @@
+/* Note for ESP32-CAM images
+Resolution,Approx. JPEG Size,Base64 Size,Fits AWS IoT?
+QVGA  (320×240),15 – 35 KB,20 – 47 KB,YES
+VGA   (640×480),40 – 90 KB,53 – 120 KB,Borderline
+SVGA  (800×600),80 – 150 KB,107 – 200 KB,NO
+XGA   (1024×768),120 – 250 KB,160 – 333 KB,NO
+UXGA  (1600×1200),200 – 500 KB,267 – 667 KB,NO
+*/
+
+#define MQTT_MAX_PACKET_SIZE 131072 // 128kb (131072) -- Max filesize for AWS IoT
+#include "esp_camera.h"
+#include <esp_now.h>
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <PubSubClient.h>
+
+#include "base64.h"
+//#include <base64.hpp>
+#include <ArduinoJson.h>
+#include <ESP32Servo.h>
+
+// ====== Wi-Fi credentials ======
+const char* ssid = "ATTfEqa6if";
+const char* password = "hb6axzafb8bn";
+// === IoT Core ===
+const char* mqttServer = "a14795b8yhdwdr-ats.iot.us-east-1.amazonaws.com";
+const int mqttPort = 8883;
+const char* publishTopic = "/esp32/smart-bin/prototyping/ESP32-JADEN/pub";
+const char* subscribeTopic = "/esp32/smart-bin/prototyping/ESP32-JADEN/sub";
+// === AWS Certs ===
+const char* ca_cert= R"EOF(
+-----BEGIN CERTIFICATE-----
+MIIDQTCCAimgAwIBAgITBmyfz5m/jAo54vB4ikPmljZbyjANBgkqhkiG9w0BAQsF
+ADA5MQswCQYDVQQGEwJVUzEPMA0GA1UEChMGQW1hem9uMRkwFwYDVQQDExBBbWF6
+b24gUm9vdCBDQSAxMB4XDTE1MDUyNjAwMDAwMFoXDTM4MDExNzAwMDAwMFowOTEL
+MAkGA1UEBhMCVVMxDzANBgNVBAoTBkFtYXpvbjEZMBcGA1UEAxMQQW1hem9uIFJv
+b3QgQ0EgMTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBALJ4gHHKeNXj
+ca9HgFB0fW7Y14h29Jlo91ghYPl0hAEvrAIthtOgQ3pOsqTQNroBvo3bSMgHFzZM
+9O6II8c+6zf1tRn4SWiw3te5djgdYZ6k/oI2peVKVuRF4fn9tBb6dNqcmzU5L/qw
+IFAGbHrQgLKm+a/sRxmPUDgH3KKHOVj4utWp+UhnMJbulHheb4mjUcAwhmahRWa6
+VOujw5H5SNz/0egwLX0tdHA114gk957EWW67c4cX8jJGKLhD+rcdqsq08p8kDi1L
+93FcXmn/6pUCyziKrlA4b9v7LWIbxcceVOF34GfID5yHI9Y/QCB/IIDEgEw+OyQm
+jgSubJrIqg0CAwEAAaNCMEAwDwYDVR0TAQH/BAUwAwEB/zAOBgNVHQ8BAf8EBAMC
+AYYwHQYDVR0OBBYEFIQYzIU07LwMlJQuCFmcx7IQTgoIMA0GCSqGSIb3DQEBCwUA
+A4IBAQCY8jdaQZChGsV2USggNiMOruYou6r4lK5IpDB/G/wkjUu0yKGX9rbxenDI
+U5PMCCjjmCXPI6T53iHTfIuJruydjsw2hUwsOBYy7n6Lz4J6lwnyUyJxx+PfkUYw
+NlNjKJBMhMhc36SdYyIDxnkvLIIW0Y2yX2J4O9oRjNP6nxHyaTLrlcCiXBIz7Vti
+9o5c8EqNWATiYnDAu74S6BuOmVv9Zz2sDJiGQ0j2og2R9jrHQ+3EgFCiXbFLOuDg
+FBciJBXKqkjyMUkVhwqYF/oPFrT3U2Tw3VJHqveNTWMynqFIlNe4MAWmyASL8806
+ksqx1kseOEuhs7gl0F0oUHnkDiDJ
+-----END CERTIFICATE-----
+)EOF"; // AWS Root CA
+const char* client_cert = R"EOF(-----BEGIN CERTIFICATE-----
+MIIDWTCCAkGgAwIBAgIUQd/lvjOiYeAedjrmebvkBZ+3CnowDQYJKoZIhvcNAQEL
+BQAwTTFLMEkGA1UECwxCQW1hem9uIFdlYiBTZXJ2aWNlcyBPPUFtYXpvbi5jb20g
+SW5jLiBMPVNlYXR0bGUgU1Q9V2FzaGluZ3RvbiBDPVVTMB4XDTI1MTEwNzE0Mjcx
+MloXDTQ5MTIzMTIzNTk1OVowHjEcMBoGA1UEAwwTQVdTIElvVCBDZXJ0aWZpY2F0
+ZTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBALplh67hcr3JIyDF9aB/
+l5eyOu7p8mEhycLQXSIH7wth31OzMhoTxuKKUlqhvApPLCgeOipAw5Aa5wQHqMfg
+mMXNHGCsEXW1zM9W3ahPKXxYT+NE06tKcSmjf0sRDX3ZNcXY6GEMEwdCjuZUO9ii
+JVlh6RntQJaaXjTkSZt4kI/WwbpuqWJFfqAT2agLU0HcNGGzViX6A8EWWlPHldjt
+mLTJnya+906z6HGMwgHmgTI+5wmoJP/KEP7peYOOh90jdTcFvmpa+vL0WXxiCzGk
+h3lcly/nJ3mhw5+eJ5YINmBNeTWzzj+1RvUi7Z0ruR3U2OTFrYkl9LtYJMOXbKs1
+8zMCAwEAAaNgMF4wHwYDVR0jBBgwFoAUTezyx3InehtYUuOpPo4X5qKSMscwHQYD
+VR0OBBYEFIAvhoqAOA3MX91ykSYcb77lEs6DMAwGA1UdEwEB/wQCMAAwDgYDVR0P
+AQH/BAQDAgeAMA0GCSqGSIb3DQEBCwUAA4IBAQAzvS3D9ryjr6T1JQmj04Srmnbm
+Yf0Hkcj099iDASSK9vhXBh7iM/RXXqVCstdmWHDSixRxU2EcEr4VEBsZuVNAjbDy
+Ia7cmJF3HImvXy/Ex3vPJFKToEgVa2C8AjPeyEc+lkDKJ712gPm6aYkxcizU4Ri9
+0q0DPYB91DRCgOE5P/jpa4RmbYiWV4mEMuB257GZcZWoO0r0d4d/z4+KsQh70FG6
+q+pCcSp5x/gjONJaNMJqPAML3eS7GpGYfdDQyR/dF3wCT8Tps+qv1UEMvAvosnm6
+w6izZnq9WZvdSK5wgr/diuEDJu2z9Za6OzO45P1NipLut01iFdI8BYesSSAx
+-----END CERTIFICATE-----
+)EOF"; // device-name.cert.pem
+const char* private_key = R"EOF(-----BEGIN RSA PRIVATE KEY-----
+MIIEpAIBAAKCAQEAumWHruFyvckjIMX1oH+Xl7I67unyYSHJwtBdIgfvC2HfU7My
+GhPG4opSWqG8Ck8sKB46KkDDkBrnBAeox+CYxc0cYKwRdbXMz1bdqE8pfFhP40TT
+q0pxKaN/SxENfdk1xdjoYQwTB0KO5lQ72KIlWWHpGe1AlppeNORJm3iQj9bBum6p
+YkV+oBPZqAtTQdw0YbNWJfoDwRZaU8eV2O2YtMmfJr73TrPocYzCAeaBMj7nCagk
+/8oQ/ul5g46H3SN1NwW+alr68vRZfGILMaSHeVyXL+cneaHDn54nlgg2YE15NbPO
+P7VG9SLtnSu5HdTY5MWtiSX0u1gkw5dsqzXzMwIDAQABAoIBAQCKeQjeq4/hXD6j
+h00d6gwFXxwXB2fQLxjDiKXXtUsqCpCtjq+G3fBfteDOgd6/TegA+cu+PhTKxqGe
+xc3mh30XXXRagRoLd37q/Z53/i9UuArJTQVu+EOvak4Tx1xdhPNEwwqHpj+wogql
+JCi9nF/g0jMo1q+n8pBP/NSOEnha0iyYQ+s62yWTolyT6zWpkcZfcx0AWNCxgrgC
+KP+i+NhGOMbh5aZ2xE3OH2PbcGrplkFQpSNZED0b1JlVZr8JiG/hB8PwkQTVerIc
+pPQUpa6tineE449r/of9SdJ4M/jd3rXw3ojXRM0AcucrelfygX+ypQtxSoggbZvs
+1TwWUj3JAoGBAOLRAUQhRq66qM+lau1oKxPHGur45kfGBLpw7v4Xb2UanYPX4SRC
+1bACamaCw5pL3Ky5uwtAHlbv2yG+UfZgSnzbOlCijhCXV9Z+cdBTU2TZ+q/4zDzp
+90kaPW8jenNk9UknPLhrwHXivYfUwt+L2w56Qg3vdwccv6i2sdG0siV1AoGBANJh
+KAM5Nh/yP4cDqdv9cHQMY1y+2QRjVD82NSQq7OdhfBTbriXDpPJLXMu4fXBd+PeD
+na7ARGOOzXO6R0Fz+YP2nC4OW9qrnulZYZsms2w6rypA/Wqz77eQHv2UnlcKIeYp
+ZQEXVHcGpmkT4Z17UPv7s5eoq0GAd99DQQnXpJkHAoGAR+kPx7PtHvSbFMpTLlW6
+Ypjblee3ysWjNiEcBH8VmC5qBiTpgn+WFCmP5lRLA55Npo10GcsIU3PUO8yFW+GH
+fDJdOLdw5x20gZKxLuVcKTta2XO9/QoIlqq1E4liBzfY9Ip2G9o9uKJciLYR2qIS
+n3Jvgs+LIzwgH7NciSoK2QkCgYBIIkX87PXw+DfuDESGiJyxPbooB8wTZBdz4RtR
+fmJiZ5uK71QD4NRCu7Jiq6xfBemivH8pdwU7+a/aWWmrOJ+6LqmYZRX7oVLIgfwk
+nZ1xo6GB5Gy/1FiCYSkvG3E7ON8sss7OE/jDIwWWC9oVDD5VWBVZD91AhVMUu1Om
+k0j9qwKBgQDL2aYzodeMwmhcTitPoFaTKNGyaDrV5gaHzAsnX3DAR3wu7wJ4vO6j
+ACjMSFsFPuaetXvmAnuZo+dIBUYo5vjgtpg+zHNeKucrToFVhug4GiR8gVzIWRcr
+m92qK61Qvj+gDj1+ypcsBXoeOBrlUMwIuao4QzN7jBITT9+tqiHE7w==
+-----END RSA PRIVATE KEY-----)EOF"; // device-name.private.key
+
+
+// === ESPNOW Receiver ===
+typedef struct msg {
+  int wasteFillPct;
+  int recycFillPct;
+  bool object_detected;
+} msg;
+msg binData = {0, 0, false};
+
+void onEspRecv(const esp_now_recv_info_t* recv_info, const uint8_t* inBytes, int len) {
+  memcpy(&binData, inBytes, sizeof(binData));
+  //wasteFill = binData.wasteFillPct;
+  //recycFill = binData.recycFillPct;
+  Serial.println("wasteFillPct:" + String(binData.wasteFillPct) + "  recycFillPct:" + String(binData.recycFillPct));
+}
+
+// ====== Camera Pin Mapping (Freenove ESP32-WROVER) ======
+#define PWDN_GPIO_NUM    -1
+#define RESET_GPIO_NUM   -1
+#define XCLK_GPIO_NUM    21
+#define SIOD_GPIO_NUM    26
+#define SIOC_GPIO_NUM    27
+
+#define Y9_GPIO_NUM      35
+#define Y8_GPIO_NUM      34
+#define Y7_GPIO_NUM      39
+#define Y6_GPIO_NUM      36
+#define Y5_GPIO_NUM      19
+#define Y4_GPIO_NUM      18
+#define Y3_GPIO_NUM      5
+#define Y2_GPIO_NUM      4
+#define VSYNC_GPIO_NUM   25
+#define HREF_GPIO_NUM    23
+#define PCLK_GPIO_NUM    22
+
+bool initCam() {
+  camera_config_t config;
+  config.ledc_channel = LEDC_CHANNEL_0;
+  config.ledc_timer   = LEDC_TIMER_0;
+  config.pin_d0 = Y2_GPIO_NUM;
+  config.pin_d1 = Y3_GPIO_NUM;
+  config.pin_d2 = Y4_GPIO_NUM;
+  config.pin_d3 = Y5_GPIO_NUM;
+  config.pin_d4 = Y6_GPIO_NUM;
+  config.pin_d5 = Y7_GPIO_NUM;
+  config.pin_d6 = Y8_GPIO_NUM;
+  config.pin_d7 = Y9_GPIO_NUM;
+  config.pin_xclk = XCLK_GPIO_NUM;
+  config.pin_pclk = PCLK_GPIO_NUM;
+  config.pin_vsync = VSYNC_GPIO_NUM;
+  config.pin_href = HREF_GPIO_NUM;
+  config.pin_sscb_sda = SIOD_GPIO_NUM;
+  config.pin_sscb_scl = SIOC_GPIO_NUM;
+  config.pin_pwdn = PWDN_GPIO_NUM;
+  config.pin_reset = RESET_GPIO_NUM;
+  config.xclk_freq_hz = 20000000;
+  config.pixel_format = PIXFORMAT_JPEG;
+  if (psramFound()) {
+    config.frame_size = FRAMESIZE_QVGA;
+    config.jpeg_quality = 12;
+    config.fb_count = 1;
+  } else {
+    config.frame_size = FRAMESIZE_QVGA;
+    config.jpeg_quality = 12;
+    config.fb_count = 1;
+  }
+  esp_err_t err = esp_camera_init(&config);
+  if (err != ESP_OK) {
+    Serial.printf("Camera init failed: 0x%x\n", err);
+    return false;
+  } else {
+    Serial.println("Camera initialized successfully!");
+  }
+  // ===== Adjust Camera Settings =====
+  sensor_t * s = esp_camera_sensor_get();
+  if (s->id.PID == OV3660_PID) {
+    s->set_vflip(s, 1);
+    s->set_brightness(s, 1);
+    s->set_saturation(s, -2);
+  }
+  return true;
+}
+
+
+// === PubSub for bidirectional communication with AWS Lambda ===
+WiFiClientSecure wifi;
+PubSubClient client(wifi);
+
+// ====== Servo and LED/Button Setup ======
+Servo myServo;
+Servo myServo2;
+
+const int recycleButtonPin = 2;   // Button for recycling
+const int trashButtonPin = 15;    // Button for trash
+const int greenLedPin = 33;       // Green LED
+const int redLedPin = 32;         // Red LED
+const int servoPin = 13;          // Servo control pin
+const int servo2Pin = 12;    // second servo pin (new)
+
+bool isRecycling = false;
+bool lastRecycleButton = HIGH;
+bool lastTrashButton = HIGH;
+
+// ===== Function Prototypes =====
+/*void startCameraServer();
+void handle_jpg_stream();*/
+void updateSystem();
+void handleSerialInput(String cmd);
+
+
+void mqttCallback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Lambda -> ");
+  String mqttRecv = "";
+  for (unsigned int i = 0; i < length; i++) {
+    mqttRecv += (char)payload[i];
+  }
+  Serial.print(mqttRecv);
+  Serial.println();
+
+  // turn bin plate to drop recycling/waste
+  StaticJsonDocument<512> doc;
+  DeserializationError error = deserializeJson(doc, mqttRecv);
+  if (!error && doc.containsKey("waste_binary")) {
+    isRecycling = !(doc["waste_binary"]);
+  }
+  else {
+    isRecycling = false;
+    Serial.println("Failed to parse JSON");
+  }
+  updateSystem();
+}
+
+bool mqttConnect() {
+  /*
+  String clientId = "esp32-gw-";
+  uint8_t mac[6];
+  esp_read_mac(mac, ESP_MAC_WIFI_STA);
+  for (int i=0;i<6;i++) clientId += String(mac[i], HEX);
+  */
+  int attempts = 0;
+  while (!client.connected()) {
+    String clientId = "ESP32CAM-" + String(random(0xffff), HEX);
+    if (client.connect(clientId.c_str(), nullptr, nullptr, nullptr, 0, false, nullptr, false)) {
+      Serial.println("MQTT Connected");
+      client.subscribe(subscribeTopic);
+    } else {
+      Serial.print("MQTT failed, rc=");
+      Serial.println(client.state());
+      attempts++;
+      if (attempts > 2) return false;
+      delay(1500);
+    }
+  }
+  return true;
+}
+
+// ===== Setup =====
+void setup() {
+  Serial.begin(115200);
+  Serial.println();
+  Serial.println("Starting ESP32 Camera + Servo System...");
+
+  // ===== WiFi Connection =====
+  WiFi.begin(ssid, password);
+  Serial.printf("Connecting to WiFi: %s\n", ssid);
+  while (WiFi.status() != WL_CONNECTED) { delay(500); Serial.print("."); }
+  Serial.println("\nWiFi connected!");
+
+  Serial.print("Camera Stream URL: http://");
+  Serial.println(WiFi.localIP());
+
+  // === WiFi config for ESPNOW ===
+  WiFi.mode(WIFI_STA);
+  Serial.print("MAC: "); Serial.println(WiFi.macAddress());
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("ERROR: Could not init ESP-NOW");
+    ESP.restart();
+  }
+
+  // callback for ESP-NOW - logs bin fill levels to struct
+  esp_now_register_recv_cb(onEspRecv);
+  Serial.println("ESP-NOW active");
+
+  // === Secure WiFi ===
+  wifi.setCACert(ca_cert); //client.loadCACert("/secrets/rootCA.pem")
+  wifi.setCertificate(client_cert);
+  wifi.setPrivateKey(private_key);
+  client.setServer(mqttServer, mqttPort);
+  client.setCallback(mqttCallback); // receiving computer vision result from AWS Lambda as it arrives
+  client.setBufferSize(MQTT_MAX_PACKET_SIZE);
+
+  // ===== Camera Configuration =====
+  while (!initCam()) {
+    Serial.print(".");
+    delay(25);
+  }
+  Serial.println();
+
+  // ===== Setup Servo + LEDs + Buttons =====
+  pinMode(recycleButtonPin, INPUT);
+  pinMode(trashButtonPin, INPUT);
+  pinMode(greenLedPin, OUTPUT);
+  pinMode(redLedPin, OUTPUT);
+
+  myServo.attach(servoPin);
+  myServo2.attach(servo2Pin);
+  updateSystem(); // Initialize LEDs and servo
+
+  Serial.println("\n=== System Ready ===");
+  Serial.println("Type commands in Serial Monitor:");
+  Serial.println("   recycle -> switch to recycling mode");
+  Serial.println("   trash   -> switch to trash mode");
+  Serial.println("   status  -> show current mode");
+  Serial.println("   help    -> list commands");
+}
+
+// ===== Main Loop =====
+unsigned long prevMillis = 0;
+const unsigned long interval = 5UL * 1000UL; // 5s interval
+void loop() {
+  // mqtt client loop
+  if (!client.connected()) mqttConnect();
+  client.loop();
+
+  // 
+  if (
+    (millis() - prevMillis > interval)
+    && binData.object_detected
+  ) {
+    binData.object_detected = false;
+
+    if (!mqttConnect()) {
+      Serial.println("Failed to connect MQTT");
+    }
+    else {
+      camera_fb_t* fb = esp_camera_fb_get();
+      if (!fb) {
+        Serial.println("Failed Camera Capture");
+        //delay(500);
+      }
+      else {
+        // encode image for publishing to cloud
+        Serial.printf("Allocating for size %u image", fb->len);
+        String encoded = base64::encode(fb->buf, fb->len);
+
+        // generate json payload
+        DynamicJsonDocument json(fb->len*2 + 2048);
+        json["topic"] = publishTopic; // contains name of device for identification
+        json["image"] = encoded; // image in b64
+        json["wasteFillPct"] = binData.wasteFillPct;
+        json["recycFillPct"] = binData.recycFillPct;
+        String payload;
+        serializeJson(json, payload);
+
+        // publish to cloud
+        if (client.publish(publishTopic, payload.c_str())) {
+          Serial.print(payload.length()); Serial.println(" byte payload published to cloud.");
+        }
+        else {
+          Serial.println("Cloud publish failed.");
+        }
+
+        esp_camera_fb_return(fb);
+
+        Serial.print("Published size: "); Serial.print((unsigned)payload.length());
+        prevMillis = millis();
+      }
+    }
+  }
+
+  // Read Serial input
+  if (Serial.available()) {
+    String cmd = Serial.readStringUntil('\n');
+    cmd.trim();
+    handleSerialInput(cmd);
+  }
+
+  // Optional: physical button handling
+  bool recycleButtonState = digitalRead(recycleButtonPin);
+  bool trashButtonState = digitalRead(trashButtonPin);
+
+  if (recycleButtonState == LOW && lastRecycleButton == HIGH) {
+    delay(50);
+    if (digitalRead(recycleButtonPin) == LOW) {
+      isRecycling = true;
+      updateSystem();
+      Serial.println("Mode: Recycling (Button)");
+    }
+  }
+
+  if (trashButtonState == LOW && lastTrashButton == HIGH) {
+    delay(50);
+    if (digitalRead(trashButtonPin) == LOW) {
+      isRecycling = false;
+      updateSystem();
+      Serial.println("Mode: Trash (Button)");
+    }
+  }
+
+  lastRecycleButton = recycleButtonState;
+  lastTrashButton = trashButtonState;
+
+  delay(5);
+}
+
+// ===== Serial Input Commands =====
+void handleSerialInput(String cmd) {
+  if (cmd.equalsIgnoreCase("recycle")) {
+    isRecycling = true;
+    updateSystem();
+    Serial.println("Switched to: Recycling Mode");
+  } 
+  else if (cmd.equalsIgnoreCase("trash")) {
+    isRecycling = false;
+    updateSystem();
+    Serial.println("Switched to: Trash Mode");
+  } 
+  else if (cmd.equalsIgnoreCase("status")) {
+    Serial.print("Current Mode: ");
+    Serial.println(isRecycling ? "Recycling" : "Trash");
+  } 
+  else if (cmd.equalsIgnoreCase("help")) {
+    Serial.println("Available commands:");
+    Serial.println("  recycle  -> switch to recycling mode");
+    Serial.println("  trash    -> switch to trash mode");
+    Serial.println("  status   -> show current mode");
+    Serial.println("  help     -> list commands");
+  } 
+  else {
+    Serial.println("Unknown command. Type 'help' for options.");
+  }
+}
+
+// ===== LED + Servo Update Function =====
+void updateSystem() {
+  //
+  if (isRecycling) {
+    digitalWrite(greenLedPin, HIGH);
+    digitalWrite(redLedPin, LOW);
+    myServo.write(180);  // Recycling position
+    myServo2.write(100);
+  } else {
+    digitalWrite(greenLedPin, LOW);
+    digitalWrite(redLedPin, HIGH);
+    myServo.write(100);  // Trash position
+    myServo2.write(180);
+  }
+  // reset position ?
+  delay(400);
+}
