@@ -575,6 +575,10 @@ function handleErrorAndReturnResponse(error: any): NextResponse<EmptyApiResponse
     console.error(`[Error] Status code: ${error.statusCode}`);
   }
 
+  // Log error code for troubleshooting
+  const errorCode = error.code || error.name || 'UNKNOWN_ERROR';
+  console.error(`[Error] Error code: ${errorCode}`);
+
   // Return empty response on error to prevent breaking the frontend
   return returnEmptyJsonResponse();
 }
