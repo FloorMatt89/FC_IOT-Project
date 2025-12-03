@@ -23,9 +23,22 @@ interface IoTData {
   };
 }
 
+interface RecyclingData {
+  items: Array<{
+    id: string;
+    name: string;
+    type: string;
+    time: string;
+    class: number;
+  }>;
+  totalItems: number;
+  recyclingRate: number;
+}
+
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<'recycling' | 'trading'>('recycling');
   const [iotData, setIotData] = useState<IoTData | null>(null);
+  const [recyclingData, setRecyclingData] = useState<RecyclingData | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Fetch IoT device data
@@ -48,14 +61,32 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
+  // Fetch DynamoDB recycling data
+  useEffect(() => {
+    const fetchRecyclingData = async () => {
+      try {
+        const response = await fetch('/api/recycling');
+        const data = await response.json();
+        setRecyclingData(data);
+      } catch (error) {
+        console.error('Error fetching recycling data:', error);
+      }
+    };
+
+    fetchRecyclingData();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchRecyclingData, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Use IoT data or fallback to defaults
   const binId = iotData?.devices[0]?.id || "Unknown";
   const binStatus = iotData?.summary.connectedDevices
     ? `${iotData.summary.connectedDevices} Connected`
     : "Not Connected";
   const currentStreak = iotData?.summary.currentStreak || 0;
-  const itemsThisWeek = iotData?.summary.totalItemsThisWeek || 0;
-  const recyclingRate = Math.round(iotData?.summary.recyclingRate || 0);
+  const itemsThisWeek = recyclingData?.totalItems || iotData?.summary.totalItemsThisWeek || 0;
+  const recyclingRate = recyclingData?.recyclingRate || Math.round(iotData?.summary.recyclingRate || 0);
   const binFillLevel = Math.round(iotData?.summary.averageFillLevel || 0);
   const reminderText = loading
     ? "Loading..."
@@ -137,43 +168,36 @@ export default function Dashboard() {
           <div className={styles.fillReminder}>{reminderText}</div>
         </div>
 
-            {/* Recent Activity */}
+            {/* Recent Activity - DynamoDB Data */}
             <div className={styles.activitySection}>
               <h2 className={styles.activityTitle}>Recent Activity</h2>
 
               <div className={styles.activityList}>
-                <div className={styles.activityItem}>
-                  <div className={styles.activityIcon}>
-                    <FaRecycle size={20} />
+                {recyclingData && recyclingData.items.length > 0 ? (
+                  recyclingData.items.map((item) => (
+                    <div key={item.id} className={styles.activityItem}>
+                      <div className={styles.activityIcon}>
+                        <FaRecycle size={20} />
+                      </div>
+                      <div className={styles.activityContent}>
+                        <div className={styles.activityName}>{item.name}</div>
+                        <div className={styles.activityTime}>{item.time}</div>
+                      </div>
+                      <div className={styles.activityBadge}>{item.type}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div className={styles.activityItem}>
+                    <div className={styles.activityIcon}>
+                      <FaRecycle size={20} />
+                    </div>
+                    <div className={styles.activityContent}>
+                      <div className={styles.activityName}>No classifications yet</div>
+                      <div className={styles.activityTime}>Waiting for data...</div>
+                    </div>
+                    <div className={styles.activityBadge}>-</div>
                   </div>
-                  <div className={styles.activityContent}>
-                    <div className={styles.activityName}>No input</div>
-                    <div className={styles.activityTime}>No input</div>
-                  </div>
-                  <div className={styles.activityBadge}>No input</div>
-                </div>
-
-                <div className={styles.activityItem}>
-                  <div className={styles.activityIcon}>
-                    <FaRecycle size={20} />
-                  </div>
-                  <div className={styles.activityContent}>
-                    <div className={styles.activityName}>No input</div>
-                    <div className={styles.activityTime}>No input</div>
-                  </div>
-                  <div className={styles.activityBadge}>No input</div>
-                </div>
-
-                <div className={styles.activityItem}>
-                  <div className={styles.activityIcon}>
-                    <FaRecycle size={20} />
-                  </div>
-                  <div className={styles.activityContent}>
-                    <div className={styles.activityName}>No input</div>
-                    <div className={styles.activityTime}>No input</div>
-                  </div>
-                  <div className={styles.activityBadge}>No input</div>
-                </div>
+                )}
               </div>
             </div>
           </>
