@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-export async function POST(request: Request) {
+export async function POST() {
   try {
     const ec2Url = process.env.EC2_CONTROL_API_URL;
     const apiKey = process.env.EC2_CONTROL_API_KEY;
@@ -11,11 +11,6 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
-
-    // Parse request body to get strategy
-    const body = await request.json().catch(() => ({}));
-    const strategy = body.strategy || 'news-sentiment';
-
 
     // Add timeout to fetch request
     const controller = new AbortController();
@@ -28,7 +23,6 @@ export async function POST(request: Request) {
           'Content-Type': 'application/json',
           'x-api-key': apiKey,
         },
-        body: JSON.stringify({ strategy }),
         signal: controller.signal,
       });
 

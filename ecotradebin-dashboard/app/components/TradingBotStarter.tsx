@@ -2,13 +2,8 @@
 
 import { useEffect, useState } from 'react';
 
-type TradingStrategy = 'news-sentiment' | 'historical-data';
-
 export default function TradingBotStarter() {
   const [status, setStatus] = useState<'idle' | 'starting' | 'online' | 'stopped' | 'error' | 'checking'>('checking');
-  const [strategy, setStrategy] = useState<'news-sentiment' | 'historical-data'>('news-sentiment');
-  const [currentStrategy, setCurrentStrategy] = useState<string>('');
-  const [showMenu, setShowMenu] = useState(false);
 
   // Check status on mount
   useEffect(() => {
@@ -29,7 +24,6 @@ export default function TradingBotStarter() {
         // Map pm2 status to our status
         if (data.status === 'online') {
           setStatus('online');
-          setCurrentStrategy(data.strategy || 'unknown');
         } else if (data.status === 'stopped') {
           setStatus('stopped');
         } else if (data.status === 'unavailable') {
@@ -51,20 +45,17 @@ export default function TradingBotStarter() {
   const handleStart = async () => {
     try {
       setStatus('starting');
-      setShowMenu(false);
 
       const response = await fetch('/api/trading/start', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ strategy }),
       });
       const data = await response.json();
 
       if (response.ok && data.status !== 'unavailable') {
         setStatus('online');
-        setCurrentStrategy(strategy);
         console.log('Trading bot started:', data.message);
       } else {
         setStatus('stopped');
@@ -105,7 +96,7 @@ export default function TradingBotStarter() {
     if (status === 'online') {
       handleStop();
     } else if (status === 'stopped' || status === 'error') {
-      setShowMenu(!showMenu);
+      handleStart();
     }
   };
 
@@ -129,7 +120,7 @@ export default function TradingBotStarter() {
   const getStatusText = () => {
     switch (status) {
       case 'online':
-        return `Active: ${currentStrategy}`;
+        return 'Active';
       case 'error':
         return 'Error (Click to Restart)';
       case 'stopped':
@@ -143,80 +134,8 @@ export default function TradingBotStarter() {
     }
   };
 
-  const getStrategyLabel = (strat: TradingStrategy) => {
-    switch (strat) {
-      case 'news-sentiment':
-        return '📰 News Sentiment AI';
-      case 'historical-data':
-        return '📊 Historical Data';
-      default:
-        return strat;
-    }
-  };
-
   return (
     <div style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 1000 }}>
-      {/* Strategy Selection Menu */}
-      {showMenu && (
-        <div
-          style={{
-            position: 'absolute',
-            bottom: '60px',
-            right: '0',
-            backgroundColor: '#1F2937',
-            border: '1px solid #374151',
-            borderRadius: '8px',
-            padding: '8px',
-            minWidth: '200px',
-            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-          }}
-        >
-          <div style={{ color: '#9CA3AF', fontSize: '12px', marginBottom: '8px', paddingLeft: '8px' }}>
-            Select Strategy:
-          </div>
-          <button
-            onClick={() => {
-              setStrategy('news-sentiment');
-              handleStart();
-            }}
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              backgroundColor: strategy === 'news-sentiment' ? '#3B82F6' : '#374151',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              marginBottom: '4px',
-              textAlign: 'left',
-              fontSize: '14px',
-            }}
-          >
-          AI: News Sentiment
-          </button>
-          <button
-            onClick={() => {
-              setStrategy('historical-data');
-              handleStart();
-            }}
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              backgroundColor: strategy === 'historical-data' ? '#3B82F6' : '#374151',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              textAlign: 'left',
-              fontSize: '14px',
-            }}
-          >
-            Historical Performance
-          </button>
-        </div>
-      )}
-
-      {/* Main Button */}
       <button
         onClick={handleToggle}
         disabled={status === 'starting' || status === 'checking'}
