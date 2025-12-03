@@ -174,6 +174,8 @@ interface RecyclingApiResponse {
   items: FormattedRecyclingItem[];
   totalItems: number;
   recyclingRate: number;
+  binFillLevel: number;
+  currentDayStreak: number;
 }
 
 /**
@@ -183,6 +185,8 @@ interface EmptyApiResponse {
   items: [];
   totalItems: 0;
   recyclingRate: 0;
+  binFillLevel: 0;
+  currentDayStreak: 0;
 }
 
 // =============================================================================
@@ -289,6 +293,56 @@ function calculateRecyclingRate(recyclableCount: number, totalCount: number): nu
 
   console.log(`[Calculation] Recycling rate: ${recyclableCount}/${totalCount} = ${roundedRate}%`);
   return roundedRate;
+}
+
+/**
+ * Extracts bin fill level from the most recent item
+ * @param {any[]} items - Array of sorted DynamoDB items
+ * @returns {number} Bin fill level percentage (0-100)
+ */
+function extractBinFillLevel(items: any[]): number {
+  if (items.length === 0) {
+    console.log('[Extraction] No items to extract bin fill level from');
+    return 0;
+  }
+
+  // Get the most recent item (items should already be sorted)
+  const mostRecentItem = items[0];
+  const fillLevel = mostRecentItem.bin_fill_level;
+
+  if (fillLevel !== undefined && fillLevel !== null) {
+    const parsedLevel = typeof fillLevel === 'number' ? fillLevel : parseInt(fillLevel);
+    console.log(`[Extraction] Bin fill level from most recent item: ${parsedLevel}%`);
+    return Math.min(100, Math.max(0, parsedLevel)); // Clamp between 0-100
+  }
+
+  console.log('[Extraction] No bin_fill_level attribute found, defaulting to 0');
+  return 0;
+}
+
+/**
+ * Extracts current day streak from the most recent item
+ * @param {any[]} items - Array of sorted DynamoDB items
+ * @returns {number} Current consecutive days streak
+ */
+function extractCurrentDayStreak(items: any[]): number {
+  if (items.length === 0) {
+    console.log('[Extraction] No items to extract streak from');
+    return 0;
+  }
+
+  // Get the most recent item (items should already be sorted)
+  const mostRecentItem = items[0];
+  const streak = mostRecentItem.current_day_streak;
+
+  if (streak !== undefined && streak !== null) {
+    const parsedStreak = typeof streak === 'number' ? streak : parseInt(streak);
+    console.log(`[Extraction] Current day streak from most recent item: ${parsedStreak} days`);
+    return Math.max(0, parsedStreak); // Ensure non-negative
+  }
+
+  console.log('[Extraction] No current_day_streak attribute found, defaulting to 0');
+  return 0;
 }
 
 /**
@@ -503,6 +557,8 @@ function createEmptyResponse(): EmptyApiResponse {
     items: [],
     totalItems: 0,
     recyclingRate: 0,
+    binFillLevel: 0,
+    currentDayStreak: 0,
   };
 }
 
@@ -520,20 +576,27 @@ function returnEmptyJsonResponse(): NextResponse<EmptyApiResponse> {
  * @param {FormattedRecyclingItem[]} formattedItems - Formatted items for display
  * @param {number} totalItems - Total number of items
  * @param {number} recyclingRate - Calculated recycling rate percentage
+ * @param {number} binFillLevel - Bin fill level percentage
+ * @param {number} currentDayStreak - Current consecutive days streak
  * @returns {RecyclingApiResponse} Complete API response object
  */
 function createSuccessResponse(
   formattedItems: FormattedRecyclingItem[],
   totalItems: number,
-  recyclingRate: number
+  recyclingRate: number,
+  binFillLevel: number,
+  currentDayStreak: number
 ): RecyclingApiResponse {
   console.log('[Response] Creating success response');
   console.log(`[Response] Items: ${formattedItems.length}, Total: ${totalItems}, Rate: ${recyclingRate}%`);
+  console.log(`[Response] Fill Level: ${binFillLevel}%, Streak: ${currentDayStreak} days`);
 
   return {
     items: formattedItems,
     totalItems: totalItems,
     recyclingRate: recyclingRate,
+    binFillLevel: binFillLevel,
+    currentDayStreak: currentDayStreak,
   };
 }
 
@@ -617,20 +680,27 @@ export async function GET(): Promise<NextResponse> {
     const totalItemCount = sortedItems.length;
     const calculatedRecyclingRate = calculateRecyclingRate(recyclableCount, totalItemCount);
 
-    // Step 5: Format items for display
-    console.log('[API] Step 5: Formatting items for frontend display');
+    // Step 5: Extract bin metrics
+    console.log('[API] Step 5: Extracting bin fill level and streak');
+    const binFillLevel = extractBinFillLevel(sortedItems);
+    const currentDayStreak = extractCurrentDayStreak(sortedItems);
+
+    // Step 6: Format items for display
+    console.log('[API] Step 6: Formatting items for frontend display');
     const formattedItems = formatItemsForDisplay(sortedItems);
 
-    // Step 6: Build response object
-    console.log('[API] Step 6: Building response object');
+    // Step 7: Build response object
+    console.log('[API] Step 7: Building response object');
     const responseData = createSuccessResponse(
       formattedItems,
       totalItemCount,
-      calculatedRecyclingRate
+      calculatedRecyclingRate,
+      binFillLevel,
+      currentDayStreak
     );
 
-    // Step 7: Return JSON response
-    console.log('[API] Step 7: Returning JSON response');
+    // Step 8: Return JSON response
+    console.log('[API] Step 8: Returning JSON response');
     console.log('[API] ========================================');
     console.log('[API] Request completed successfully');
     console.log('[API] ========================================');
