@@ -1,7 +1,7 @@
 'use client';
 
 import styles from './page.module.css';
-import { FaWifi, FaRecycle } from "react-icons/fa";
+import { FaRecycle, FaTrash } from "react-icons/fa";
 import PortfolioDisplay from './components/PortfolioDisplay';
 import { useState, useEffect } from 'react';
 
@@ -23,9 +23,24 @@ interface IoTData {
   };
 }
 
+interface RecyclingData {
+  items: Array<{
+    id: string;
+    name: string;
+    type: string;
+    time: string;
+    class: number;
+  }>;
+  totalItems: number;
+  recyclingRate: number;
+  binFillLevel?: number;
+  currentDayStreak?: number;
+}
+
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<'recycling' | 'trading'>('recycling');
   const [iotData, setIotData] = useState<IoTData | null>(null);
+  const [recyclingData, setRecyclingData] = useState<RecyclingData | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Fetch IoT device data
@@ -48,15 +63,29 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  // Use IoT data or fallback to defaults
-  const binId = iotData?.devices[0]?.id || "Unknown";
-  const binStatus = iotData?.summary.connectedDevices
-    ? `${iotData.summary.connectedDevices} Connected`
-    : "Not Connected";
-  const currentStreak = iotData?.summary.currentStreak || 0;
-  const itemsThisWeek = iotData?.summary.totalItemsThisWeek || 0;
-  const recyclingRate = Math.round(iotData?.summary.recyclingRate || 0);
-  const binFillLevel = Math.round(iotData?.summary.averageFillLevel || 0);
+  // Fetch DynamoDB recycling data
+  useEffect(() => {
+    const fetchRecyclingData = async () => {
+      try {
+        const response = await fetch('/api/recycling');
+        const data = await response.json();
+        setRecyclingData(data);
+      } catch (error) {
+        console.error('Error fetching recycling data:', error);
+      }
+    };
+
+    fetchRecyclingData();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchRecyclingData, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Use DynamoDB data (recyclingData) with IoT data as fallback
+  const currentStreak = recyclingData?.currentDayStreak ?? iotData?.summary.currentStreak ?? 0;
+  const itemsThisWeek = recyclingData?.totalItems ?? iotData?.summary.totalItemsThisWeek ?? 0;
+  const recyclingRate = recyclingData?.recyclingRate ?? Math.round(iotData?.summary.recyclingRate ?? 0);
+  const binFillLevel = recyclingData?.binFillLevel ?? Math.round(iotData?.summary.averageFillLevel ?? 0);
   const reminderText = loading
     ? "Loading..."
     : binFillLevel > 80
@@ -91,17 +120,6 @@ export default function Dashboard() {
         {/* Conditional Content Based on Active Tab */}
         {activeTab === 'recycling' ? (
           <>
-            {/* Bin Connected Status */}
-            <div className={styles.statusCard}>
-              <div className={styles.statusIcon}>
-                <FaWifi />
-              </div>
-              <div className={styles.statusText}>
-                <div className={styles.statusTitle}>Bin Connected</div>
-                <div className={styles.statusSubtitle}>Bin #{binId} • {binStatus}</div>
-              </div>
-            </div>
-
         {/* Current Streak Card */}
         <div className={styles.streakCard}>
           <div className={styles.streakHeader}>
@@ -137,43 +155,54 @@ export default function Dashboard() {
           <div className={styles.fillReminder}>{reminderText}</div>
         </div>
 
-            {/* Recent Activity */}
+            {/* Recent Activity - DynamoDB Data */}
             <div className={styles.activitySection}>
               <h2 className={styles.activityTitle}>Recent Activity</h2>
 
               <div className={styles.activityList}>
-                <div className={styles.activityItem}>
-                  <div className={styles.activityIcon}>
-                    <FaRecycle size={20} />
-                  </div>
-                  <div className={styles.activityContent}>
-                    <div className={styles.activityName}>No input</div>
-                    <div className={styles.activityTime}>No input</div>
-                  </div>
-                  <div className={styles.activityBadge}>No input</div>
-                </div>
+                {recyclingData && recyclingData.items.length > 0 ? (
+                  recyclingData.items.map((item) => {
+                    const isRecyclable = item.type === 'recyclable';
+                    const iconColor = isRecyclable ? '#10b981' : '#ef4444'; // Green for recyclable, Red for waste
+                    const badgeColor = isRecyclable ? '#10b981' : '#ef4444';
 
-                <div className={styles.activityItem}>
-                  <div className={styles.activityIcon}>
-                    <FaRecycle size={20} />
+                    return (
+                      <div key={item.id} className={styles.activityItem}>
+                        <div className={styles.activityIcon} style={{ color: iconColor }}>
+                          {isRecyclable ? <FaRecycle size={20} /> : <FaTrash size={20} />}
+                        </div>
+                        <div className={styles.activityContent}>
+                          <div className={styles.activityName}>{item.name}</div>
+                          <div className={styles.activityTime}>{item.time}</div>
+                        </div>
+                        <div
+                          className={styles.activityBadge}
+                          style={{
+                            backgroundColor: badgeColor,
+                            color: 'white',
+                            padding: '4px 12px',
+                            borderRadius: '12px',
+                            fontSize: '12px',
+                            fontWeight: '500'
+                          }}
+                        >
+                          {item.type}
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className={styles.activityItem}>
+                    <div className={styles.activityIcon}>
+                      <FaRecycle size={20} />
+                    </div>
+                    <div className={styles.activityContent}>
+                      <div className={styles.activityName}>No classifications yet</div>
+                      <div className={styles.activityTime}>Waiting for data...</div>
+                    </div>
+                    <div className={styles.activityBadge}>-</div>
                   </div>
-                  <div className={styles.activityContent}>
-                    <div className={styles.activityName}>No input</div>
-                    <div className={styles.activityTime}>No input</div>
-                  </div>
-                  <div className={styles.activityBadge}>No input</div>
-                </div>
-
-                <div className={styles.activityItem}>
-                  <div className={styles.activityIcon}>
-                    <FaRecycle size={20} />
-                  </div>
-                  <div className={styles.activityContent}>
-                    <div className={styles.activityName}>No input</div>
-                    <div className={styles.activityTime}>No input</div>
-                  </div>
-                  <div className={styles.activityBadge}>No input</div>
-                </div>
+                )}
               </div>
             </div>
           </>
