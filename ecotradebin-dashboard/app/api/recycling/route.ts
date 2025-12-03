@@ -210,6 +210,15 @@ function hasValidItems(items: any): boolean {
     return false;
   }
 
+  // Additional validation: check if items have required fields
+  const invalidItems = items.filter(item =>
+    !item.img_id || !item.timestamp || item.waste_binary === undefined
+  );
+
+  if (invalidItems.length > 0) {
+    console.log(`[Validation] Warning: ${invalidItems.length} items missing required fields`);
+  }
+
   console.log(`[Validation] Found ${items.length} valid items`);
   return true;
 }
