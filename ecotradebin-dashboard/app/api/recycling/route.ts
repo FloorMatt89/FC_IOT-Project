@@ -591,6 +591,11 @@ export async function GET(): Promise<NextResponse> {
   console.log('[API] ========================================');
   console.log('[API] GET /api/recycling - Request received');
   console.log('[API] ========================================');
+  console.log('[DEBUG] Environment check:', {
+    hasAccessKey: !!process.env.AWS_ACCESS_KEY_ID,
+    hasSecretKey: !!process.env.AWS_SECRET_ACCESS_KEY,
+    region: process.env.AWS_DYNAMODB_REGION || 'default'
+  });
 
   try {
     // Step 1: Fetch data from DynamoDB
