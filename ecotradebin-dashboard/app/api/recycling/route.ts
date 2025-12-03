@@ -293,11 +293,11 @@ function calculateRecyclingRate(recyclableCount: number, totalCount: number): nu
     return 0;
   }
 
-  const percentageRate = (recyclableCount / totalCount) * 100;
-  const roundedPercentageRate = Math.round(percentageRate);
+  const rate = (recyclableCount / totalCount) * 100;
+  const roundedRate = Math.round(rate);
 
-  console.log(`[Calculation] Recycling rate: ${recyclableCount}/${totalCount} = ${roundedPercentageRate}%`);
-  return roundedPercentageRate;
+  console.log(`[Calculation] Recycling rate: ${recyclableCount}/${totalCount} = ${roundedRate}%`);
+  return roundedRate;
 }
 
 /**
