@@ -588,6 +588,7 @@ function handleErrorAndReturnResponse(error: any): NextResponse<EmptyApiResponse
  * @returns {Promise<NextResponse>} JSON response with recycling data
  */
 export async function GET(): Promise<NextResponse> {
+  const startTime = Date.now();
   console.log('[API] ========================================');
   console.log('[API] GET /api/recycling - Request received');
   console.log('[API] ========================================');
@@ -600,7 +601,10 @@ export async function GET(): Promise<NextResponse> {
   try {
     // Step 1: Fetch data from DynamoDB
     console.log('[API] Step 1: Fetching data from DynamoDB');
+    const fetchStartTime = Date.now();
     const dynamoDbResponse = await fetchItemsFromDynamoDB();
+    const fetchDuration = Date.now() - fetchStartTime;
+    console.log(`[PERFORMANCE] DynamoDB fetch took ${fetchDuration}ms`);
 
     // Step 2: Validate response
     console.log('[API] Step 2: Validating DynamoDB response');
@@ -636,6 +640,8 @@ export async function GET(): Promise<NextResponse> {
 
     // Step 7: Return JSON response
     console.log('[API] Step 7: Returning JSON response');
+    const totalDuration = Date.now() - startTime;
+    console.log(`[PERFORMANCE] Total request took ${totalDuration}ms`);
     console.log('[API] ========================================');
     console.log('[API] Request completed successfully');
     console.log('[API] ========================================');
