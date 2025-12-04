@@ -84,7 +84,7 @@ export default function Dashboard() {
   const binStatus = iotData?.summary.connectedDevices
     ? `${iotData.summary.connectedDevices} Connected`
     : "Not Connected";
-  const currentStreak = iotData?.summary.currentStreak || 0;
+  const currentStreak = iotData?.summary.currentStreak || 1;
   const itemsThisWeek = recyclingData?.totalItems || iotData?.summary.totalItemsThisWeek || 0;
   const recyclingRate = recyclingData?.recyclingRate || Math.round(iotData?.summary.recyclingRate || 0);
   const binFillLevel = Math.round(iotData?.summary.averageFillLevel || 0);
