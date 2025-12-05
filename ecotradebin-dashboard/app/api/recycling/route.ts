@@ -37,7 +37,7 @@ import { DynamoDBDocumentClient, ScanCommand } from '@aws-sdk/lib-dynamodb';
  * Maximum number of items to fetch from DynamoDB per request
  * This limits the scan operation to improve performance
  */
-const MAX_ITEMS_TO_FETCH = 10;
+const MAX_ITEMS_TO_FETCH = 100;
 
 /**
  * Maximum number of items to display in the recent activity list
@@ -151,9 +151,11 @@ interface DynamoDBWasteItem {
   img_id: string;
   timestamp: string;
   waste_binary: number;
-  pred_class: number;
+  pred_class: string;
   confidence?: number;
   image_url?: string;
+  recycFillPct?: number;
+  wasteFillPct?: number;
 }
 
 /**
@@ -164,7 +166,9 @@ interface FormattedRecyclingItem {
   name: string;
   type: string;
   time: string;
-  class: number;
+  class: string;
+  recycFillPct?: number;
+  wasteFillPct?: number;
 }
 
 /**
@@ -175,6 +179,8 @@ interface RecyclingApiResponse {
   totalItems: number;
   recyclingRate: number;
   binFillLevel: number;
+  recycFillPct?: number;
+  wasteFillPct?: number;
   currentDayStreak: number;
 }
 
@@ -186,6 +192,8 @@ interface EmptyApiResponse {
   totalItems: 0;
   recyclingRate: 0;
   binFillLevel: 0;
+  recycFillPct: 0;
+  wasteFillPct: 0;
   currentDayStreak: 0;
 }
 
@@ -296,9 +304,9 @@ function calculateRecyclingRate(recyclableCount: number, totalCount: number): nu
 }
 
 /**
- * Extracts bin fill level from the most recent item
+ * Extracts recyclable bin fill level percentage from the most recent item
  * @param {any[]} items - Array of sorted DynamoDB items
- * @returns {number} Bin fill level percentage (0-100)
+ * @returns {number} Recyclable bin fill level percentage (0-100)
  */
 function extractBinFillLevel(items: any[]): number {
   if (items.length === 0) {
@@ -308,15 +316,67 @@ function extractBinFillLevel(items: any[]): number {
 
   // Get the most recent item (items should already be sorted)
   const mostRecentItem = items[0];
-  const fillLevel = mostRecentItem.bin_fill_level;
+  const recycFillPct = mostRecentItem.recycFillPct;
 
-  if (fillLevel !== undefined && fillLevel !== null) {
-    const parsedLevel = typeof fillLevel === 'number' ? fillLevel : parseInt(fillLevel);
-    console.log(`[Extraction] Bin fill level from most recent item: ${parsedLevel}%`);
+  if (recycFillPct !== undefined && recycFillPct !== null) {
+    const parsedLevel = typeof recycFillPct === 'number' ? recycFillPct : parseInt(recycFillPct);
+    console.log(`[Extraction] Recyclable bin fill level from most recent item: ${parsedLevel}%`);
     return Math.min(100, Math.max(0, parsedLevel)); // Clamp between 0-100
   }
 
-  console.log('[Extraction] No bin_fill_level attribute found, defaulting to 0');
+  console.log('[Extraction] No recycFillPct attribute found, defaulting to 0');
+  return 0;
+}
+
+/**
+ * Extracts recyclable fill percentage from the most recent item
+ * @param {any[]} items - Array of sorted DynamoDB items
+ * @returns {number} Recyclable fill percentage (0-100)
+ */
+function extractRecycFillPct(items: any[]): number {
+  if (items.length === 0) {
+    console.log('[Extraction] No items to extract recycFillPct from');
+    return 0;
+  }
+
+  const mostRecentItem = items[0];
+  console.log('[Extraction] Most recent item keys:', Object.keys(mostRecentItem));
+  console.log('[Extraction] Most recent item:', mostRecentItem);
+  const recycFillPct = mostRecentItem.recycFillPct;
+
+  if (recycFillPct !== undefined && recycFillPct !== null) {
+    const parsedPct = typeof recycFillPct === 'number' ? recycFillPct : parseInt(recycFillPct);
+    console.log(`[Extraction] Recyclable fill percentage: ${parsedPct}%`);
+    return Math.min(100, Math.max(0, parsedPct));
+  }
+
+  console.log('[Extraction] No recycFillPct attribute found in item');
+  console.log('[Extraction] Available fields:', Object.keys(mostRecentItem));
+  return 0;
+}
+
+/**
+ * Extracts waste fill percentage from the most recent item
+ * @param {any[]} items - Array of sorted DynamoDB items
+ * @returns {number} Waste fill percentage (0-100)
+ */
+function extractWasteFillPct(items: any[]): number {
+  if (items.length === 0) {
+    console.log('[Extraction] No items to extract wasteFillPct from');
+    return 0;
+  }
+
+  const mostRecentItem = items[0];
+  console.log('[Extraction] Checking for wasteFillPct in most recent item');
+  const wasteFillPct = mostRecentItem.wasteFillPct;
+
+  if (wasteFillPct !== undefined && wasteFillPct !== null) {
+    const parsedPct = typeof wasteFillPct === 'number' ? wasteFillPct : parseInt(wasteFillPct);
+    console.log(`[Extraction] Waste fill percentage: ${parsedPct}%`);
+    return Math.min(100, Math.max(0, parsedPct));
+  }
+
+  console.log('[Extraction] No wasteFillPct attribute found in item');
   return 0;
 }
 
@@ -389,7 +449,9 @@ function formatSingleItem(item: any): FormattedRecyclingItem {
   const itemType = getItemType(wasteBinary);
   const itemTimestamp = new Date(item.timestamp as string);
   const timeAgo = formatTimeAgo(itemTimestamp);
-  const predictionClass = item.pred_class || 0;
+  const predictionClass = item.pred_class || 'unknown';
+  const recycFillPct = item.recycFillPct;
+  const wasteFillPct = item.wasteFillPct;
 
   console.log(`[Formatting] Formatted item ${itemId}: ${itemName} (${timeAgo})`);
 
@@ -399,6 +461,8 @@ function formatSingleItem(item: any): FormattedRecyclingItem {
     type: itemType,
     time: timeAgo,
     class: predictionClass,
+    recycFillPct: recycFillPct,
+    wasteFillPct: wasteFillPct,
   };
 }
 
@@ -558,6 +622,8 @@ function createEmptyResponse(): EmptyApiResponse {
     totalItems: 0,
     recyclingRate: 0,
     binFillLevel: 0,
+    recycFillPct: 0,
+    wasteFillPct: 0,
     currentDayStreak: 0,
   };
 }
@@ -577,6 +643,8 @@ function returnEmptyJsonResponse(): NextResponse<EmptyApiResponse> {
  * @param {number} totalItems - Total number of items
  * @param {number} recyclingRate - Calculated recycling rate percentage
  * @param {number} binFillLevel - Bin fill level percentage
+ * @param {number} recycFillPct - Recyclable fill percentage
+ * @param {number} wasteFillPct - Waste fill percentage
  * @param {number} currentDayStreak - Current consecutive days streak
  * @returns {RecyclingApiResponse} Complete API response object
  */
@@ -585,17 +653,21 @@ function createSuccessResponse(
   totalItems: number,
   recyclingRate: number,
   binFillLevel: number,
+  recycFillPct: number,
+  wasteFillPct: number,
   currentDayStreak: number
 ): RecyclingApiResponse {
   console.log('[Response] Creating success response');
   console.log(`[Response] Items: ${formattedItems.length}, Total: ${totalItems}, Rate: ${recyclingRate}%`);
-  console.log(`[Response] Fill Level: ${binFillLevel}%, Streak: ${currentDayStreak} days`);
+  console.log(`[Response] Recycling: ${recycFillPct}%, Waste: ${wasteFillPct}%, Bin: ${binFillLevel}%, Streak: ${currentDayStreak} days`);
 
   return {
     items: formattedItems,
     totalItems: totalItems,
     recyclingRate: recyclingRate,
     binFillLevel: binFillLevel,
+    recycFillPct: recycFillPct,
+    wasteFillPct: wasteFillPct,
     currentDayStreak: currentDayStreak,
   };
 }
@@ -681,8 +753,10 @@ export async function GET(): Promise<NextResponse> {
     const calculatedRecyclingRate = calculateRecyclingRate(recyclableCount, totalItemCount);
 
     // Step 5: Extract bin metrics
-    console.log('[API] Step 5: Extracting bin fill level and streak');
+    console.log('[API] Step 5: Extracting bin fill level, fill percentages, and streak');
     const binFillLevel = extractBinFillLevel(sortedItems);
+    const recycFillPct = extractRecycFillPct(sortedItems);
+    const wasteFillPct = extractWasteFillPct(sortedItems);
     const currentDayStreak = extractCurrentDayStreak(sortedItems);
 
     // Step 6: Format items for display
@@ -696,6 +770,8 @@ export async function GET(): Promise<NextResponse> {
       totalItemCount,
       calculatedRecyclingRate,
       binFillLevel,
+      recycFillPct,
+      wasteFillPct,
       currentDayStreak
     );
 

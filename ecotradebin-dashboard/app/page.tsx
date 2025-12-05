@@ -29,11 +29,15 @@ interface RecyclingData {
     name: string;
     type: string;
     time: string;
-    class: number;
+    class: string;
+    recycFillPct?: number;
+    wasteFillPct?: number;
   }>;
   totalItems: number;
   recyclingRate: number;
   binFillLevel?: number;
+  recycFillPct?: number;
+  wasteFillPct?: number;
   currentDayStreak?: number;
 }
 
@@ -69,6 +73,9 @@ export default function Dashboard() {
       try {
         const response = await fetch('/api/recycling');
         const data = await response.json();
+        console.log('[DEBUG] Recycling API Response:', data);
+        console.log('[DEBUG] recycFillPct:', data.recycFillPct);
+        console.log('[DEBUG] wasteFillPct:', data.wasteFillPct);
         setRecyclingData(data);
       } catch (error) {
         console.error('Error fetching recycling data:', error);
@@ -82,7 +89,7 @@ export default function Dashboard() {
   }, []);
 
   // Use DynamoDB data (recyclingData) with IoT data as fallback
-  const currentStreak = recyclingData?.currentDayStreak ?? iotData?.summary.currentStreak ?? 0;
+  const currentStreak = recyclingData?.currentDayStreak ?? iotData?.summary.currentStreak ?? 1;
   const itemsThisWeek = recyclingData?.totalItems ?? iotData?.summary.totalItemsThisWeek ?? 0;
   const recyclingRate = recyclingData?.recyclingRate ?? Math.round(iotData?.summary.recyclingRate ?? 0);
   const binFillLevel = recyclingData?.binFillLevel ?? Math.round(iotData?.summary.averageFillLevel ?? 0);
@@ -143,15 +150,34 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Bin Fill Level */}
+        {/* Bin Fill Level - Recycling and Waste */}
         <div className={styles.fillCard}>
           <div className={styles.fillHeader}>
-            <span className={styles.fillTitle}>Bin Fill Level</span>
-            <span className={styles.fillPercentage}>{binFillLevel}%</span>
+            <span className={styles.fillTitle}>Bin Status</span>
           </div>
-          <div className={styles.progressBar}>
-            <div className={styles.progressFill} style={{ width: `${binFillLevel}%` }}></div>
+          
+          {/* Recyclable Bin */}
+          <div className={styles.binContainer}>
+            <div className={styles.binLabel}>
+              <span>Recyclable Bin Fill Level</span>
+              <span className={styles.binPercentage}>{recyclingData?.recycFillPct ?? binFillLevel}%</span>
+            </div>
+            <div className={styles.progressBar}>
+              <div className={styles.progressFill} style={{ width: `${recyclingData?.recycFillPct ?? binFillLevel}%`, backgroundColor: '#10b981' }}></div>
+            </div>
           </div>
+
+          {/* Waste Bin */}
+          <div className={styles.binContainer}>
+            <div className={styles.binLabel}>
+              <span>Waste Bin Fill Level</span>
+              <span className={styles.binPercentage}>{recyclingData?.wasteFillPct ?? 0}%</span>
+            </div>
+            <div className={styles.progressBar}>
+              <div className={styles.progressFill} style={{ width: `${recyclingData?.wasteFillPct ?? 0}%`, backgroundColor: '#ef4444' }}></div>
+            </div>
+          </div>
+
           <div className={styles.fillReminder}>{reminderText}</div>
         </div>
 
@@ -161,13 +187,15 @@ export default function Dashboard() {
 
               <div className={styles.activityList}>
                 {recyclingData && recyclingData.items.length > 0 ? (
-                  recyclingData.items.map((item) => {
+                  recyclingData.items.map((item, index) => {
                     const isRecyclable = item.type === 'recyclable';
                     const iconColor = isRecyclable ? '#10b981' : '#ef4444'; // Green for recyclable, Red for waste
                     const badgeColor = isRecyclable ? '#10b981' : '#ef4444';
+                    // Create unique key using id + timestamp or fallback to index
+                    const itemKey = `${item.id}-${item.time}-${index}`;
 
                     return (
-                      <div key={item.id} className={styles.activityItem}>
+                      <div key={itemKey} className={styles.activityItem}>
                         <div className={styles.activityIcon} style={{ color: iconColor }}>
                           {isRecyclable ? <FaRecycle size={20} /> : <FaTrash size={20} />}
                         </div>
